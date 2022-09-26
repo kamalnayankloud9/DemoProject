@@ -52,7 +52,7 @@ default_args = {
     "owner": "airflow",
     "depends_on_past": True,
     "wait_for_downstream": True,
-    "start_date": datetime(2022, 9, 12),
+    "start_date": datetime(2022, 9, 11),
     "email": ["airflow@airflow.com"],
     "email_on_failure": False,
     "email_on_retry": False,
