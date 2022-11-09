@@ -137,8 +137,8 @@ class Agg(Curated):
         target_table_name = "curated_log_details"
         snowflake_options = {
             "sfUrl": "jn94146.ap-south-1.aws.snowflakecomputing.com",
-            "sfUser": "sushantsangle",
-            "sfPassword": "Stanford@01",
+            "sfUser": "***",
+            "sfPassword": "*****",
             "sfDatabase": snowflake_database,
             "sfSchema": snowflake_schema,
             "sfWarehouse": "curated_snowflake"
