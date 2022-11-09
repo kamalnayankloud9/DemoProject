@@ -1,3 +1,0 @@
-s3://layer-raw/raw_layer/part-00000-d865eb3e-7937-4104-99de-b24dafc2c50f-c000.csv
-
-region: south-ap-1

@@ -1,5 +1,0 @@
-   select count(*) from raw_log_details;  299860
-   select count(*) from cleanse_og_details;  299860
-   select count(*) from curate_og_details; 299860
-   select count(*) from log_agg_per_device;  4741
-   select count(*) from log_agg_across_device; 21

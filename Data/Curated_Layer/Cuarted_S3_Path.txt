@@ -1,3 +1,0 @@
-arn:aws:s3:::layer-curated
-
-ap-south-1
