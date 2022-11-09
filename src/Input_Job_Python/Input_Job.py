@@ -5,14 +5,15 @@ from json import dumps
 
 # read the file
 import time
+import random
 
 
 class augment:
-    produce = KafkaProducer(bootstrap_servers=['b-2.s3sinkcluster.uj4gy1.c2.kafka.ap-south-1.amazonaws.com:9092','b-1.s3sinkcluster.uj4gy1.c2.kafka.ap-south-1.amazonaws.com:9092'],
-                            value_serializer=lambda x: dumps(x).encode('utf-8'))
-    topic_name = 'demoproject'
-    input_filename = "/home/ec2-user/log_data_ip_request.txt"
-    #input_filename = "log_data_ip_request.txt"
+    # produce = KafkaProducer(bootstrap_servers=['b-2.s3sinkcluster.uj4gy1.c2.kafka.ap-south-1.amazonaws.com:9092','b-1.s3sinkcluster.uj4gy1.c2.kafka.ap-south-1.amazonaws.com:9092'],
+    #                         value_serializer=lambda x: dumps(x).encode('utf-8'))
+    # topic_name = 'demoproject'
+    # input_filename = "/home/ec2-user/log_data_ip_request.txt"
+    input_filename = "log_data_ip_request.txt"
     count = 0
     incrementBy = 0
     input_file_object = open(input_filename, 'r')
@@ -23,17 +24,21 @@ class augment:
         self.input_file_object.seek(0)
         for line_num, line in enumerate(self.input_file_object):
             last_digit = int(line.strip(" ").split(" ")[0].split(".")[-1])
-            hour_digit = int(line.split(" ")[3].split(":")[1])
+            hour_digit = (line.split(" ")[3].split(":")[1])
             day_digit = int(line.split(" ")[3].split("/")[0][1:])
-            if (line_num) < 10:
+            if (line_num) < 300:
                 # change the
-                temp_hour_changer = hour_digit + self.incrementBy
-                temp_digit_changer = last_digit + self.incrementBy
-                temp_day_changer = day_digit + self.incrementBy
+                # temp_hour_changer = hour_digit + self.incrementBy
+                temp_hour_changer = random.randint(10,23)
+
+                # temp_digit_changer = last_digit + self.incrementBy
+                temp_digit_changer = random.randint(1,255)
+                # temp_day_changer = day_digit + self.incrementBy
+                temp_day_changer = random.randint(1,31)
                 # temp_digit_changer = last_digit + 1
 
-                if temp_day_changer > 31: temp_day_changer = 31
-                if temp_hour_changer > 23: temp_hour_changer = 23
+
+
 
                 line = line.replace(str('.' + str(last_digit)), str('.' + str(temp_digit_changer)), 1)
                 line = line.replace(str(str(hour_digit) + ':'), str(str(temp_hour_changer) + ':'), 1)
@@ -45,8 +50,8 @@ class augment:
 
             self.count += 1
             print("number of records inserted:--> " + str(self.count))
-            self.produce.send(self.topic_name, value=line)
-            # self.file_object.write(line)
+            # self.produce.send(self.topic_name, value=line)
+            self.file_object.write(line)
         # if self.incrementBy < 1:
         self.incrementBy += 1
 

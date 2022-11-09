@@ -17,7 +17,7 @@ class Setup:
                                                                                                         "local").enableHiveSupport().getOrCreate()
     # raw_df = spark.read.text("s3://mkc-tutorial-dest/tutorial/kafka-log-stream/299999.text")
 
-    raw_df = spark.read.text("s3://layer-s3-sink/log_data_ip_request.txt")
+    raw_df = spark.read.text("s3://layer-s3-sink/IncreasedInput/")
     #raw_df = spark.read.text("C:\\Users\\Kamal Nayan\\Downloads\\log-increased.text")
 
     # spark = SparkSession.builder.appName("Demo Project").master("yarn").enableHiveSupport().getOrCreate()
@@ -29,7 +29,7 @@ class Setup:
         try:
             #self.raw_df = self.spark.read.text("s3://mkc-tutorial-dest/tutorial/kafka-log-stream/299999.text")
             #self.raw_df = self.spark.read.text("C:\\Users\\Kamal Nayan\\Downloads\\log-increased.text")
-            self.raw_df = self.spark.read.text("s3://layer-s3-sink/log_data_ip_request.txt")
+            self.raw_df = self.spark.read.text("s3://layer-s3-sink/IncreasedInput/")
         except Exception as err:
             logging.error('Exception was thrown in connection %s' % err)
             print("Error is {}".format(err))
@@ -64,27 +64,58 @@ class Cleaning(Setup):
 
     def remove_empty_string_with_null(self):
         self.raw_df = self.raw_df.select(
-            [when(col(c) == "-", None).otherwise(col(c)).alias(c) for c in self.raw_df.columns])
+            [when(col(c) == "-", "N/A").otherwise(col(c)).alias(c) for c in self.raw_df.columns])
         self.raw_df.show()
         # return self.raw_df
 
     def count_null_each_column(self):
         check_null_count = self.raw_df.select([count(when(isnan(c) | col(c).isNull(), c)).alias(c) for c in self.raw_df.columns])
-        check_null_count.show()
+        # check_null_count.show()
 
     def write_to_s3(self):
          # self.raw_df.write.csv("s3a://project-layers-kamal/raw-layer/", mode="append",header=True)
         # self.raw_df.write.csv("C:\\Users\\Kamal Nayan\\Downloads\\Layers\\Raw\\", mode="append", header=True)
+         print("writing to s3 raw_layer")
          self.raw_df.write.csv("s3://layer-raw/raw_layer/", mode="overwrite",header=True)
 
     def write_to_hive(self):
         #pass
         # **************************
         #self.raw_df.write.csv("s3a://project-layers-kamal/raw-layer/raw.csv", mode="append",header=True)
+        print("Writing to Hive....")
         sqlContext = HiveContext(self.spark.sparkContext)
         sqlContext.sql('DROP TABLE IF EXISTS raw_log_details')
 
         self.raw_df.write.saveAsTable('raw_log_details')
+
+    def write_to_snowflake(self):
+        SNOWFLAKE_SOURCE_NAME = "net.snowflake.spark.snowflake"
+        snowflake_database = "kamaldb"
+        snowflake_schema = "public"
+        target_table_name = "curated_log_details"
+        snowflake_options = {
+            "sfUrl": "jn94146.ap-south-1.aws.snowflakecomputing.com",
+            "sfUser": "sushantsangle",
+            "sfPassword": "Stanford@01",
+            "sfDatabase": snowflake_database,
+            "sfSchema": snowflake_schema,
+            "sfWarehouse": "curated_snowflake"
+        }
+        spark = SparkSession.builder \
+            .appName("Demo_Project").enableHiveSupport().getOrCreate()
+
+        #raw
+        print('writing to snowflake')
+        df_raw_sn = spark.read \
+            .format('csv').load('s3://layer-raw/raw_layer/', header=True)
+        df_raw_sn = df_raw_sn.select("*")
+        df_raw_sn.write.format("snowflake") \
+            .options(**snowflake_options) \
+            .option("dbtable", "log_raw_details") \
+            .option("header", "true") \
+            .mode("overwrite") \
+            .save()
+
 
 
 if __name__ == "__main__":
@@ -143,3 +174,8 @@ if __name__ == "__main__":
         clean.write_to_hive()
     except Exception as e:
         logging.error('Error at %s', 'write to hive', exc_info=e)
+
+    try:
+        clean.write_to_snowflake()
+    except Exception as e:
+        logging.error('Error at %s', 'write to snowflake', exc_info=e)

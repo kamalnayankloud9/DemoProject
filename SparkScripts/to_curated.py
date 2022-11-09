@@ -92,7 +92,7 @@ class Agg(Curated):
     def agg_per_device(self, df_temp):
         df_agg_per_device = df_temp.select("row_id", "day_hour", "clientip", "no_get", "no_post", "no_head") \
             .groupBy("day_hour", "clientip") \
-            .agg(count("row_id").alias("row_id"),
+            .agg(count("row_id").alias("count_row_id"),
                  count(col("No_get")).alias("no_get"),
                  count(col("No_post")).alias("no_post"),
                  count(col("No_head")).alias("no_head")) \
@@ -107,7 +107,7 @@ class Agg(Curated):
             .groupBy("day_hour") \
             .agg(
                 count("clientip").alias("no_of_clients"),
-                count("row_id").alias("row_id"),
+                count("row_id").alias("count_row_id"),
                 count(col("No_get")).alias("no_get"),
                 count(col("No_post")).alias("no_post"),
                 count(col("No_head")).alias("no_head")
@@ -130,33 +130,57 @@ class Agg(Curated):
         sqlContext.sql('DROP TABLE IF EXISTS log_agg_across_device')
         df_agg_across_device.write.saveAsTable('log_agg_across_device')
 
-    def write_to_snowflake(self,df_agg_per_device,df_agg_across_device):
+    def write_to_snowflake(self):
         SNOWFLAKE_SOURCE_NAME = "net.snowflake.spark.snowflake"
-        snowflake_database = "curated"
+        snowflake_database = "kamaldb"
         snowflake_schema = "public"
-        target_table_name = "curatedtbl"
+        target_table_name = "curated_log_details"
         snowflake_options = {
             "sfUrl": "jn94146.ap-south-1.aws.snowflakecomputing.com",
-            "sfUser": "kamalnayan",
+            "sfUser": "sushantsangle",
+            "sfPassword": "Stanford@01",
             "sfDatabase": snowflake_database,
             "sfSchema": snowflake_schema,
             "sfWarehouse": "curated_snowflake"
         }
+        spark = SparkSession.builder \
+            .appName("Demo_Project").enableHiveSupport().getOrCreate()
 
-        self.curated_df.write.format(SNOWFLAKE_SOURCE_NAME) \
+        #curated
+        df_curated_sn = spark.read \
+            .format('csv').load('s3://layer-curated/curated/', header=True)
+        df_curated_sn = df_curated_sn.select("*")
+        df_curated_sn.write.format("snowflake") \
             .options(**snowflake_options) \
-            .option("dbtable", "curated").mode("overwrite") \
+            .option("dbtable", "log_curated_details") \
+            .option("header", "true") \
+            .mode("overwrite") \
             .save()
 
-        df_agg_per_device.write.format(SNOWFLAKE_SOURCE_NAME) \
+        #Snowflake log_per_device
+        df_per_device_sn = spark.read \
+            .format('csv').load('s3://layer-curated/aggregation-per-device/', header=True)
+        df_per_device_sn = df_per_device_sn.select("*")
+        df_per_device_sn.write.format("snowflake") \
             .options(**snowflake_options) \
-            .option("dbtable", "log_agg_per_device").mode("overwrite") \
+            .option("dbtable", "log_per_device") \
+            .option("header", "true") \
+            .mode("overwrite") \
             .save()
 
-        df_agg_across_device.write.format(SNOWFLAKE_SOURCE_NAME) \
+        #Snowflake log_across_device
+        df_across_device_sn = spark.read \
+            .format('csv').load('s3://layer-curated/aggregation-across-device/', header=True)
+        df_across_device_sn = df_across_device_sn.select("*")
+        df_across_device_sn.write.format("snowflake") \
             .options(**snowflake_options) \
-            .option("dbtable", "log_agg_across_device").mode("overwrite") \
+            .option("dbtable", "log_across_device") \
+            .option("header", "true") \
+            .mode("overwrite") \
             .save()
+
+
+
 
 
 if __name__ == '__main__':
@@ -240,9 +264,9 @@ if __name__ == '__main__':
         sys.exit(1)
 
     try:
-        agg.write_to_snowflake(df_temp_agg_per_device,df_temp_agg_across_device)
+        agg.write_to_snowflake()
     except Exception as e:
-        logging.error('Error at %s', 'write to s3_agg', exc_info=e)
+        logging.error('Error at %s', 'write to s3_snowflake', exc_info=e)
         sys.exit(1)
 
 

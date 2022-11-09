@@ -34,11 +34,15 @@ class Setup:
             print("Error is {}".format(err))
             sys.exit(1)
         else:
-            self.clean_df.printSchema()
-            self.clean_df.show()
+            pass
+            # self.clean_df.printSchema()
+            # self.clean_df.show()
             # raw_df.show(10, truncate=False)
 
 class CleanLayer(Setup):
+
+
+
     #mm-dd-yyyy hh24:mi:ss
     def datetime_formatter(self):
         self.clean_df = self.clean_df.withColumn("datetime", split(self.clean_df["datetime"], ' ').getItem(0)).withColumn("datetime",to_timestamp("datetime",'dd/MMM/yyyy:HH:mm:ss'))
@@ -53,24 +57,54 @@ class CleanLayer(Setup):
 
     def referer_present(self):
         self.clean_df = self.clean_df.withColumn("referer_present",
-                                      when(col("referer").isNull(), "N") \
+                                      when(col("referer")=="N/A", "N") \
                                       .otherwise("Y"))
         self.clean_df.show()
 
     def count_null_each_column(self):
          check_null_count= self.clean_df.select([count(when(col(c).isNull(), c)).alias(c) for c in self.clean_df.columns])
-         check_null_count.show()
+         # check_null_count.show()
 
     def write_to_s3(self):
         #self.clean_df.write.csv("s3a://pspark-submit --master yarn --deploy-mode client to_raw_layer.pyroject-layers-kamal/clean-layer/clean.csv", mode="append",header=True)
-        self.clean_df.printSchema()
+        # self.clean_df.printSchema()
+        print("writing to clean s3")
         self.clean_df.write.csv("s3://layer-cleansed/cleansed/", mode="overwrite", header=True)
 
     def write_to_hive(self):
         # **************************
+        print("writing to hive")
         sqlContext = HiveContext(self.spark.sparkContext)
         sqlContext.sql('DROP TABLE IF EXISTS cleanse_og_details')
         self.clean_df.write.saveAsTable('cleanse_og_details')
+
+    def write_to_snowflake(self):
+        SNOWFLAKE_SOURCE_NAME = "net.snowflake.spark.snowflake"
+        snowflake_database = "kamaldb"
+        snowflake_schema = "public"
+        target_table_name = "curated_log_details"
+        snowflake_options = {
+            "sfUrl": "jn94146.ap-south-1.aws.snowflakecomputing.com",
+            "sfUser": "sushantsangle",
+            "sfPassword": "Stanford@01",
+            "sfDatabase": snowflake_database,
+            "sfSchema": snowflake_schema,
+            "sfWarehouse": "curated_snowflake"
+        }
+        spark = SparkSession.builder \
+            .appName("Demo_Project").enableHiveSupport().getOrCreate()
+
+        #clean
+        #writing to snowflake
+        df_clean_sn = spark.read \
+            .format('csv').load('s3://layer-cleansed/cleansed/', header=True)
+        df_clean_sn = df_clean_sn.select("*")
+        df_clean_sn.write.format("snowflake") \
+            .options(**snowflake_options) \
+            .option("dbtable", "log_clean_details") \
+            .option("header", "true") \
+            .mode("overwrite") \
+            .save()
 
 
 if __name__ == "__main__":
@@ -82,12 +116,21 @@ if __name__ == "__main__":
         logging.error('Error at %s', 'Reading from S3 Sink', exc_info=e)
         sys.exit(1)
 
+
     #Clean
+
+
     try:
         cleanLayer = CleanLayer()
     except Exception as e:
         logging.error('Error at %s', 'Error at CleanLayer Object Creation', exc_info=e)
         sys.exit(1)
+
+    # try:
+    #     cleanLayer.drop_duplicate_values()
+    # except Exception as e:
+    #     logging.error('Error at %s', 'Error at Drop duplicates', exc_info=e)
+    #     sys.exit(1)
 
     try:
         cleanLayer.datetime_formatter()
@@ -118,6 +161,11 @@ if __name__ == "__main__":
 
     try:
         cleanLayer.write_to_hive()
+    except Exception as e:
+        logging.error('Error at %s', 'write to hive', exc_info=e)
+
+    try:
+        cleanLayer.write_to_snowflake()
     except Exception as e:
         logging.error('Error at %s', 'write to hive', exc_info=e)
 
